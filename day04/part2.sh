@@ -48,7 +48,7 @@ while [[ $N -le $END ]]; do
 		echo $N
 		((COUNT=COUNT+1))
 	else
-		case $ERRNO in
+		case $ERR in
 			TOO_SMALL)
 				N=99999
 				;;
