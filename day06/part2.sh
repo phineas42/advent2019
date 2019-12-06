@@ -1,0 +1,72 @@
+#!/bin/bash
+
+declare -A ORDERS
+declare -A MAP_CHILD
+declare -A MAP_PARENT
+ORDERS=([COM]=0)
+
+function DEBUG() {
+	echo "$1" >&2
+}
+function DEBUGF() {
+	printf "$@" >&2
+	echo >&2
+}
+
+
+while IFS=')' read PARENT CHILD; do
+	MAP_PARENT[$CHILD]=$PARENT
+	MAP_CHILD[$PARENT]+="$CHILD " # multiple children per parent
+done
+#DEBUG "$(declare -p MAP_CHILD)"
+# Calculate orders starting with COM
+QUEUE=(COM)
+DIRECT_LINKS=0
+INDIRECT_LINKS=0
+while [[ ${#QUEUE[@]} -gt 0 ]]; do
+	NEWQUEUE=""
+	for PARENT in ${QUEUE[@]}; do
+		PARENT_ORDER=${ORDERS[$PARENT]}
+		CHILDREN_STRING=${MAP_CHILD[$PARENT]}
+		for CHILD in $CHILDREN_STRING; do
+			((DIRECT_LINKS=DIRECT_LINKS+1))
+			((INDIRECT_LINKS=INDIRECT_LINKS+PARENT_ORDER))
+			ORDERS[$CHILD]=$((PARENT_ORDER+1))
+		done
+		NEWQUEUE+=$CHILDREN_STRING
+	done
+	QUEUE=($NEWQUEUE)
+done
+
+echo $((INDIRECT_LINKS+DIRECT_LINKS))
+
+PARENTAGE=""
+function CALCULATE_PARENTAGE() {
+	OBJECT=$1
+	PARENTAGE=""
+	while [[ ${PARENTAGE:0:3} != COM ]]; do
+		PARENT=${MAP_PARENT[$OBJECT]}
+		PARENTAGE="$PARENT $PARENTAGE"
+		OBJECT=$PARENT
+	done
+}
+
+CALCULATE_PARENTAGE SAN
+SAN_PARENTAGE_STRING=$PARENTAGE
+
+CALCULATE_PARENTAGE YOU
+YOU_PARENTAGE=($PARENTAGE)
+
+START_ORDER=${ORDERS[YOU]}
+END_ORDER=${ORDERS[SAN]}
+for (( i=${#YOU_PARENTAGE[@]}-1; i>=0; i-- )); do
+	YOU_ANCESTOR=${YOU_PARENTAGE[$i]}
+	if [[ $SAN_PARENTAGE_STRING =~ $YOU_ANCESTOR ]]; then
+		TRANSIT_ORDER=${ORDERS[$YOU_ANCESTOR]}
+		COST=$((START_ORDER-1-TRANSIT_ORDER+END_ORDER-1-TRANSIT_ORDER))
+		echo $COST
+		exit 0
+	fi
+done
+echo "Exception - no route found" >&2
+exit 1
