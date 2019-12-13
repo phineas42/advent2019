@@ -6,74 +6,155 @@ if [[ -z "$NUM_STEPS" ]]; then
 	exit 1
 fi
 
-function apply_gravity() {
-	for (( A=0; A<NUM_MOONS; A++ )); do
-		for (( B=A+1; B<NUM_MOONS; B++)); do
-			if [[ $A -ne $B ]]; then
-				AP=(${MOON_POSITIONS[$A]})
-				BP=(${MOON_POSITIONS[$B]})
-				AV=(${MOON_VELOCITIES[$A]})
-				BV=(${MOON_VELOCITIES[$B]})
-				for AXIS in 0 1 2; do
-					if [[ ${AP[$AXIS]} -lt ${BP[$AXIS]} ]]; then
-						AV[$AXIS]=$((AV[$AXIS]+1))
-						BV[$AXIS]=$((BV[$AXIS]-1))
-					elif [[ ${AP[$AXIS]} -gt ${BP[$AXIS]} ]]; then
-						AV[$AXIS]=$((AV[$AXIS]-1))
-						BV[$AXIS]=$((BV[$AXIS]+1))
-					fi
-				done
-				MOON_VELOCITIES[$A]=${AV[*]}
-				MOON_VELOCITIES[$B]=${BV[*]}
+function __SORT() {
+	local LIST i T
+	LIST=("$@")
+	for (( i=1; i<${#LIST[@]}; i++ )); do
+		if [[ ${LIST[i]} -lt ${LIST[i-1]} ]]; then
+			T=${LIST[i-1]}
+			LIST[i-1]=${LIST[i]}
+			LIST[i]=$T
+			if [[ $i -gt 1 ]]; then
+				i=$((i-2))
 			fi
-		done
+		fi
 	done
+	RES=${LIST[@]}
 }
 
-function apply_velocity() {
-	for (( M=0; M<NUM_MOONS; M++)); do
-		MP=(${MOON_POSITIONS[$M]})
-		MV=(${MOON_VELOCITIES[$M]})
-		for AXIS in 0 1 2; do
-			MP[$AXIS]=$((MP[$AXIS]+MV[$AXIS]))
-		done
-		MOON_POSITIONS[$M]=${MP[*]}
+function __UNIQ() {
+	local LIST i T LIST2
+	LIST=("$@")
+	LIST2=(${LIST[0]})
+	for (( i=1; i<${#LIST[@]}; i++ )); do
+		if [[ ${LIST[i]} -ne ${LIST[i-1]} ]]; then
+			LIST2+=(${LIST[i]})
+		fi
 	done
+	RES=${LIST2[@]}
 }
 
 function __ABS() {
         if [[ $1 -lt 0 ]]; then
-                ((RES=0-$1))
+                RES=$((0-$1))
         else
-                ((RES=$1))
+                RES=$1
         fi
 }
 
-function calculate_energy() {
-	SUM_TOTAL_ENERGY=0
-	for (( M=0; M<NUM_MOONS; M++)); do
-		MP=(${MOON_POSITIONS[$M]})
-		MV=(${MOON_VELOCITIES[$M]})
-		POTENTIAL_ENERGY=0
-		KINETIC_ENERGY=0
-		for AXIS in 0 1 2; do
-			__ABS ${MP[$AXIS]}
-			POTENTIAL_ENERGY=$((POTENTIAL_ENERGY+RES))
-			__ABS ${MV[$AXIS]}
-			KINETIC_ENERGY=$((KINETIC_ENERGY+RES))
-		done
-		TOTAL_ENERGY=$((POTENTIAL_ENERGY*KINETIC_ENERGY))
-		SUM_TOTAL_ENERGY=$((SUM_TOTAL_ENERGY+TOTAL_ENERGY))
+function __MIN() {
+	local MIN VAL
+	MIN=$1
+	shift
+	for VAL in $@; do
+		if [[ $VAL -lt $MIN ]]; then
+			MIN=$VAL
+		fi
 	done
-	RES=$SUM_TOTAL_ENERGY
+	RES=$MIN
 }
 
-function DEBUG_STATE() {
-	echo After $STEP steps:
-	for (( M=0; M<NUM_MOONS; M++)); do
-		MP=(${MOON_POSITIONS[$M]})
-		MV=(${MOON_VELOCITIES[$M]})
-		printf "pos=<x=%2d, y=%2d, z=%2d>, vel=<x=%2d, y=%2d, z=%2d>\n" ${MP[@]} ${MV[@]}
+function __MAX() {
+	local MAX VAL
+	MAX=$1
+	shift
+	for VAL in $@; do
+		if [[ $VAL -gt $MAX ]]; then
+			MAX=$VAL
+		fi
+	done
+	RES=$MAX
+}
+
+function __PRIMEFACTOR() {
+	local N=$1
+	local PRIMEFACTORS=()
+	local i
+	for (( i=2; i<=N; true )); do
+		if [[ $((N%i)) -eq 0 ]]; then
+			PRIMEFACTORS+=($i)
+			N=$((N/i))
+		else
+			i=$((i+1))
+		fi
+	done
+	RES=${PRIMEFACTORS[@]}
+}
+
+#TODO: optimize __FACTOR
+function __FACTOR() {
+	local N=$1
+	local FACTORS=(1 $N)
+	local i
+	for (( i=2; i<=N/2; i++ )); do
+		if [[ $((N%i)) -eq 0 ]]; then
+			FACTORS+=($i $((N/i)))
+		fi
+	done
+	RES=${FACTORS[@]}
+}
+
+
+function __FACTOR() {
+	local N=$1
+	__PRIMEFACTOR $N
+	# TODO allow PRIMEFACTORS to be pre-supplied
+	# TODO in which case we may wish to skip the culling of duplicates
+	local PRIMEFACTORS=$RES
+	local OTHERFACTORS=()
+	local NDF
+	for F in $PRIMEFACTORS; do
+		# ASSERT: F should never equal 1
+		if [[ $F -eq $N ]]; then
+			continue
+		fi
+		NDF=$((N/F))
+		#TODO: supply PRIMEFACTORS to the recursive __FACTOR call
+		__FACTOR $NDF
+		OTHERFACTORS+=($NDF $RES)
+	done
+	__SORT ${OTHERFACTORS[@]}
+	__UNIQ $RES
+
+}
+
+function __GCD() {
+	NUMBERS=($@)
+	NUM_INPUTS=${#NUMBERS[@]}
+	FACTORS_STR=""
+	for N in ${NUMBERS[@]}; do
+		__FACTOR $N
+		__SORT $RES
+		__UNIQ $RES
+		FACTORS_STR+=" $RES"
+	done
+	__SORT $FACTORS_STR
+	FACTORS=($RES)
+	#echo FACTORS ${FACTORS[@]}
+	COUNT=1
+	for ((i=${#FACTORS[@]}-2; i>=0; i-- )); do
+		if [[ ${FACTORS[i]} -eq ${FACTORS[i+1]} ]]; then
+			COUNT=$((COUNT+1))
+			if [[ $COUNT -eq $NUM_INPUTS ]]; then
+				RES=${FACTORS[i]}
+				return
+			fi
+		else
+			COUNT=1
+		fi
+	done
+	RES=1
+}
+
+function __LCM() {
+	local i
+	NUMBERS=($@)
+	RES=${NUMBERS[0]}
+	for (( i=1; i<${#NUMBERS[@]}; i++)); do
+		A=$RES
+		B=${NUMBERS[i]}
+		__GCD $A $B
+		RES=$((A*B/RES))
 	done
 }
 
@@ -87,95 +168,31 @@ function TRANSFORM_AXIS() {
 	HASH=${P[*]}" "${V[*]}
 	echo "\"$HASH\""
 	TRANSFORM_STEP=0
-	while [[ -z "${HASHES[$HASH]}" ]]; do
+	while [[ -z "${HASHES[HASH]}" ]]; do
 		HASHES[$HASH]=$TRANSFORM_STEP
 		# Apply gravity
 		for (( M=0; M<COUNT; M++ )); do
 			for (( M2=M+1; M2<COUNT; M2++ )); do
-				if [[ ${P[$M]} -lt ${P[$M2]} ]]; then
-					V[$M]=$((V[M]+1))
-					V[$M2]=$((V[M2]-1))
-				elif [[ ${P[$M]} -gt ${P[$M2]} ]]; then
-					V[$M]=$((V[M]-1))
-					V[$M2]=$((V[M2]+1))
+				if [[ ${P[M]} -lt ${P[M2]} ]]; then
+					V[M]=$((V[M]+1))
+					V[M2]=$((V[M2]-1))
+				elif [[ ${P[M]} -gt ${P[M2]} ]]; then
+					V[M]=$((V[M]-1))
+					V[M2]=$((V[M2]+1))
 				fi
 			done
 		done
 		# Apply Velocity
 		for (( M=0; M<COUNT; M++ )); do
-			P[$M]=$((P[M]+V[M]))
+			P[M]=$((P[M]+V[M]))
 		done
 		# Calculate HASH
 		HASH=${P[*]}" "${V[*]}
 		TRANSFORM_STEP=$((TRANSFORM_STEP+1))
 	done
-	FREQ=$(($TRANSFORM_STEP-${HASHES[$HASH]}))
-	PHASE=${HASHES[$HASH]}
+	FREQ=$((TRANSFORM_STEP-HASHES[HASH]))
+	PHASE=${HASHES[HASH]}
 }
-
-function __MAX() {
-	local MAX
-	MAX=$1
-	shift
-	for V in ${@}; do
-		if [[ $V -gt $MAX ]]; then
-			MAX=$V
-		fi
-	done
-	RES=$MAX
-}
-function __FACTOR() {
-	local N=$1
-	local FACTORS=()
-	local i
-	for (( i=2; i<=N; true )); do
-		if [[ $((N%i)) -eq 0 ]]; then
-			FACTORS+=($i)
-			N=$((N/i))
-		else
-			i=$((i+1))
-		fi
-	done
-	RES="${FACTORS[*]}"
-}
-
-function __LCM() {
-	NUMBERS=($@)
-	FACTORS=()
-	for N in ${NUMBERS[@]}; do
-		__FACTOR $N
-		echo "$RES"
-		FACTORS+=("$RES")
-	done
-	declare -p FACTORS
-	COMMON_FACTORS=()
-	for N in ${!NUMBERS[@]}; do
-		for F in ${FACTORS[$N]}; do
-			for N2 in ${!NUMBERS[@]}; do
-				if [[ $N -eq $N2 ]]; then
-					continue
-				fi
-				for F2 in ${FACTORS[$N2]}; do
-					if [[ $F2 -eq $F ]]; then
-				       		continue 2
-				 	fi
-				done
-				break 2
-			done
-			# F is a common factor
-			COMMON_FACTORS+=($F)
-		done
-	done
-	LCM=1
-	for N in ${NUMBERS[@]}; do
-		LCM=$((LCM*N))
-	done
-	for F in ${COMMON_FACTORS[@]}; do
-		LCM=$((LCM/F))
-	done
-	RES=$LCM
-}
-
 function SEARCH_FREQ_PHASE_INTERSECTION() {
 	FREQ_X=$1
 	FREQ_Y=$2
@@ -265,6 +282,6 @@ FREQ_Y=96236
 PHASE_Y=0
 FREQ_Z=193052
 PHASE_Z=0
-#SEARCH_FREQ_PHASE_INTERSECTION $FREQ_X $FREQ_Y $FREQ_Z $PHASE_X $PHASE_Y $PHASE_Z
-LCM(231614,96236,193052)==537881600740876
+SEARCH_FREQ_PHASE_INTERSECTION $FREQ_X $FREQ_Y $FREQ_Z $PHASE_X $PHASE_Y $PHASE_Z
+#LCM(231614,96236,193052)==537881600740876
 # Prime factorization largest power method: expr 115807 \* 2 \* 2 \* 7 \* 7 \* 491 \* 17 \* 17 \* 167
