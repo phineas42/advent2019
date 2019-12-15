@@ -35,19 +35,6 @@ function REDRAW() {
 	echo "Display: $SCORE"
 }
 
-NOTIFY_PID=$$
-coproc {
-	while true; do
-		sleep 0.2
-		kill -SIGUSR1 $NOTIFY_PID
-	done
-}
-CLEAN_COPROC() {
-	kill $COPROC_PID
-}
-trap REDRAW SIGUSR1
-trap CLEAN_COPROC EXIT
-
 while IFS= read X; do
 	IFS= read Y
 	IFS= read A
@@ -66,3 +53,5 @@ while IFS= read X; do
 		MAX_Y=$RES
 	fi
 done
+
+REDRAW
