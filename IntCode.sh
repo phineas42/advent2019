@@ -1,8 +1,13 @@
 #!/bin/bash
 
 PROGRAM_MEMORY_FILE_NAME=
+STDOUT_PROMPT=0
 while [[ ${#@} -gt 0 ]]; do
 	case "$1" in
+		--stdout-prompt)
+			STDOUT_PROMPT=1
+			shift
+			;;
 		--signal)
 			NOTIFY_PID=$2
 			echo will notify $NOTIFY_PID >&2
@@ -131,6 +136,9 @@ while [[ RUN -gt 0 ]]; do
 				if [[ -n $NOTIFY_PID ]]; then
 					echo SIGNAL >&2
 					kill -SIGUSR1 $NOTIFY_PID
+					read INPUT
+				elif [[ $STDOUT_PROMPT -eq 1 ]]; then
+					echo INPUT:
 					read INPUT
 				else
 					read -p "INPUT: " INPUT
