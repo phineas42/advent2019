@@ -1,7 +1,23 @@
 #!/bin/bash
 
-PROGRAM_MEMORY_FILE_NAME=$1
-shift
+PROGRAM_MEMORY_FILE_NAME=
+while [[ ${#@} -gt 0 ]]; do
+	case "$1" in
+		--signal)
+			NOTIFY_PID=$2
+			echo will notify $NOTIFY_PID >&2
+			shift 2
+			;;
+		*)
+			if [[ -z "$PROGRAM_MEMORY_FILE_NAME" ]]; then
+				PROGRAM_MEMORY_FILE_NAME=$1
+				shift
+			else
+				break
+			fi
+			;;
+	esac
+done
 INITIAL_INPUTS=($@)
 IFS=,
 read -a MEMORY < $PROGRAM_MEMORY_FILE_NAME
@@ -112,7 +128,13 @@ while [[ RUN -gt 0 ]]; do
 				INPUT=${INITIAL_INPUTS[0]}
 				INITIAL_INPUTS=("${INITIAL_INPUTS[@]:1}")
 			else
-				read INPUT
+				if [[ -n $NOTIFY_PID ]]; then
+					echo SIGNAL >&2
+					kill -SIGUSR1 $NOTIFY_PID
+					read INPUT
+				else
+					read -p "INPUT: " INPUT
+				fi
 			fi
 			if [[ -z $PHASE ]]; then
 				PHASE=$INPUT

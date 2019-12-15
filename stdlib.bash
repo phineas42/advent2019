@@ -4,6 +4,21 @@
 
 TIMEFORMAT="%Rs"
 
+# __STRINDEX
+# Determines the index of a substring within a string
+# PRECONDITION: $1 is a string in which to search
+#               $2 is a substring to find.
+# POSTCONDITION: RES is the index of $2 in $1, or -1 if not found
+function __STRINDEX() {
+	# Adapted from https://stackoverflow.com/a/5032641	
+	local x="${1%%$2*}"
+	if [[ "$x" == "$1" ]]; then
+		RES=-1
+	else
+       		RES="${#x}"
+	fi
+}
+
 # __SORT
 # Sorts a list of integers
 # PRECONDITION: Argument list $@ consists of at least one integer
