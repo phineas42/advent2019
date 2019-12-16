@@ -4,6 +4,16 @@
 
 TIMEFORMAT="%Rs"
 
+function DEBUGF() {
+        FORMAT=$1
+        shift
+        printf "$FORMAT" "$@"
+}
+
+function DEBUG() {
+        DEBUGF "%s\n" "$@"
+}
+
 # __STRINDEX
 # Determines the index of a substring within a string
 # PRECONDITION: $1 is a string in which to search
