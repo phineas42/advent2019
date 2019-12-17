@@ -7,11 +7,11 @@ TIMEFORMAT="%Rs"
 function DEBUGF() {
         FORMAT=$1
         shift
-        printf "$FORMAT" "$@"
+        printf "$FORMAT" "$@" >&2
 }
 
 function DEBUG() {
-        DEBUGF "%s\n" "$@"
+        DEBUGF "%s\n" "$@" >&2
 }
 
 # __STRINDEX
@@ -85,8 +85,10 @@ function __ABS() {
 # POSTCONDITION: RES is the lowest integer from the inputs.
 function __MIN() {
 	local MIN VAL
-	MIN=$1
-	shift
+	while [[ -z $MIN ]]; do
+		MIN=$1
+		shift
+	done
 	for VAL in $@; do
 		if [[ $VAL -lt $MIN ]]; then
 			MIN=$VAL
@@ -101,8 +103,10 @@ function __MIN() {
 # POSTCONDITION: RES is the highest integer from the inputs.
 function __MAX() {
 	local MAX VAL
-	MAX=$1
-	shift
+	while [[ -z $MAX ]]; do
+		MAX=$1
+		shift
+	done
 	for VAL in $@; do
 		if [[ $VAL -gt $MAX ]]; then
 			MAX=$VAL
